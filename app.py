@@ -2,11 +2,7 @@ import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 from github import Github # 引入 GitHub 套件
-from datetime import datetime
 import io
-
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 
 # --- 設定頁面 ---
 st.set_page_config(page_title="家庭財務AI中控台", layout="wide")
@@ -144,59 +140,6 @@ t_asset, t_liability, m_income, m_expense = calculate_metrics(edited_df, USDTWD,
 net_worth = t_asset - t_liability
 monthly_net_flow = m_income - m_expense
 
-# --- PDF 報告生成 ---
-def create_financial_report_pdf(df, asset, liability, net, income, expense, net_flow, usdtwd, thbtwd):
-    buffer = io.BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-    y = height - 50
-
-    def next_line(text="", font="Helvetica", size=11, leading=16):
-        nonlocal y
-        if y < 60:
-            pdf.showPage()
-            y = height - 50
-        pdf.setFont(font, size)
-        pdf.drawString(50, y, text)
-        y -= leading
-
-    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    next_line("家庭財務報告", "Helvetica-Bold", 18, 26)
-    next_line(f"生成時間：{generated_at}", leading=20)
-    next_line(f"USD/TWD：{usdtwd}    THB/TWD：{thbtwd}", leading=20)
-    next_line()
-
-    next_line("核心指標", "Helvetica-Bold", 14, 22)
-    next_line(f"總資產：NT$ {asset:,.0f}")
-    next_line(f"總負債：NT$ {liability:,.0f}")
-    next_line(f"淨資產：NT$ {net:,.0f}")
-    next_line(f"每月收入：NT$ {income:,.0f}")
-    next_line(f"每月支出：NT$ {expense:,.0f}")
-    next_line(f"每月現金流：NT$ {net_flow:,.0f}")
-    next_line()
-
-    next_line("數據概覽", "Helvetica-Bold", 14, 22)
-    next_line(f"資料筆數：{len(df)}")
-    if not df.empty:
-        category_counts = df['Category'].value_counts().to_dict()
-        for cat, count in category_counts.items():
-            next_line(f"{cat}：{count} 筆")
-        next_line()
-
-        next_line("最高金額項目 (前 5)", "Helvetica-Bold", 12, 18)
-        top_rows = df.copy()
-        top_rows['AmountNumeric'] = pd.to_numeric(top_rows['Amount'], errors='coerce')
-        top_rows = top_rows.dropna(subset=['AmountNumeric']).sort_values(by='AmountNumeric', ascending=False).head(5)
-        for _, row in top_rows.iterrows():
-            amount = row['AmountNumeric']
-            next_line(f"{row['Name']} - {row['Category']} - {row['Currency']} {amount:,.2f}")
-    else:
-        next_line("目前沒有可用的數據。")
-
-    pdf.save()
-    buffer.seek(0)
-    return buffer.getvalue()
-
 # --- 4. 儀表板顯示 ---
 st.markdown("---")
 kpi_toggle_col, _ = st.columns([1, 5])
@@ -243,24 +186,3 @@ if st.button("Gemini 分析"):
                 response = model.generate_content(prompt)
                 st.markdown(response.text)
         except Exception as e: st.error(f"錯誤: {e}")
-
-# --- 6. 財務報告下載 ---
-st.markdown("---")
-st.subheader("3. 財務報告 PDF 下載")
-pdf_bytes = create_financial_report_pdf(
-    edited_df,
-    t_asset,
-    t_liability,
-    net_worth,
-    m_income,
-    m_expense,
-    monthly_net_flow,
-    USDTWD,
-    THBTWD,
-)
-st.download_button(
-    label="📄 下載財務報告 PDF",
-    data=pdf_bytes,
-    file_name=f"financial_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-    mime="application/pdf",
-)
