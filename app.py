@@ -48,14 +48,16 @@ with col_upload:
     )
 
 with col_sample:
-    with open("financial_data_sample.csv", "rb") as f:
-        sample_bytes = f.read()
-    st.download_button(
-        label="⬇️ 下載範例 CSV",
-        data=sample_bytes,
-        file_name="financial_data_sample.csv",
-        mime="text/csv",
-    )
+    # 只有尚未成功上傳檔案時，才顯示「下載範例」按鈕
+    if uploaded_file is None:
+        with open("financial_data_sample.csv", "rb") as f:
+            sample_bytes = f.read()
+        st.download_button(
+            label="⬇️ 下載範例 CSV",
+            data=sample_bytes,
+            file_name="financial_data_sample.csv",
+            mime="text/csv",
+        )
 
 if uploaded_file is None:
     st.info("請先上傳 CSV 檔以進行編輯與分析（如需範例，右側可下載範例 CSV）。")
