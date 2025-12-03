@@ -142,16 +142,33 @@ monthly_net_flow = m_income - m_expense
 
 # --- 4. 儀表板顯示 ---
 st.markdown("---")
+kpi_toggle_col, _ = st.columns([1, 5])
+
+if 'hide_kpi' not in st.session_state:
+    st.session_state.hide_kpi = False
+
+with kpi_toggle_col:
+    if st.button("👁️ 切換KPI顯示", help="點擊以隱藏或顯示 KPI 數值"):
+        st.session_state.hide_kpi = not st.session_state.hide_kpi
+
+def masked_value(value: float) -> str:
+    return "••••" if st.session_state.hide_kpi else f"${value:,.0f}"
+
+kpi_delta = (
+    "••••" if st.session_state.hide_kpi or t_asset == 0
+    else f"負債比: {t_liability / t_asset * 100:.1f}%"
+)
+
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric("總資產 (TWD)", f"${t_asset:,.0f}")
-kpi2.metric("總負債 (TWD)", f"${t_liability:,.0f}", delta_color="inverse")
-kpi3.metric("淨資產 (TWD)", f"${net_worth:,.0f}", delta=f"負債比: {t_liability/t_asset*100:.1f}%")
-kpi4.metric("每月正向現金流", f"${monthly_net_flow:,.0f}")
+kpi1.metric("總資產 (TWD)", masked_value(t_asset))
+kpi2.metric("總負債 (TWD)", masked_value(t_liability), delta_color="inverse")
+kpi3.metric("淨資產 (TWD)", masked_value(net_worth), delta=kpi_delta)
+kpi4.metric("每月正向現金流", masked_value(monthly_net_flow))
 
 # --- 5. AI 分析 ---
 st.markdown("---")
 st.subheader(f"2. Gemini 財務顧問 (模型: {selected_model_name.replace('models/', '')})")
-user_question = st.text_area("您想分析什麼？", "請分析目前的財務結構風險，並預測若維持現狀，10年後的資產變化。")
+user_question = st.text_area("您想分析什麼？", "請進行整體的財務狀況分析與建議，並預估10年後的資產變化。")
 
 if st.button("🚀 啟動 Gemini 分析"):
     if not api_key: st.warning("請先輸入 Google API Key")
