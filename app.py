@@ -65,8 +65,37 @@ if uploaded_file is None:
 
 df = pd.read_csv(uploaded_file)
 
-# 2. 顯示編輯器（不再提供雲端儲存，編輯僅在本次瀏覽器工作階段內有效）
-edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="editor")
+# 2. 以類別分頁顯示/編輯（編輯僅在本次瀏覽器工作階段內有效）
+st.markdown("#### 資料編輯區（依類別分頁）")
+primary_categories = ["Asset", "Income", "Liability", "Expense"]
+tabs = st.tabs([f"{cat} 明細" for cat in primary_categories])
+edited_sections = []
+
+for tab, category in zip(tabs, primary_categories):
+    with tab:
+        cat_df = df[df["Category"] == category].copy()
+        if cat_df.empty:
+            st.info(f"目前沒有 {category} 資料，可直接於下表新增列。")
+            cat_df = pd.DataFrame(columns=df.columns)
+        # 確保欄位順序與原始資料一致
+        cat_df = cat_df.reindex(columns=df.columns)
+        edited_cat = st.data_editor(
+            cat_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            key=f"editor_{category.lower()}",
+        )
+        # 強制寫回類別，避免新增列失去類別資訊
+        edited_cat["Category"] = category
+        edited_sections.append(edited_cat)
+
+# 處理不在主要四類中的資料，避免遺失
+others_df = df[~df["Category"].isin(primary_categories)]
+if not others_df.empty:
+    st.warning("偵測到非 Asset/Income/Liability/Expense 類別資料，將維持原狀。")
+    edited_sections.append(others_df)
+
+edited_df = pd.concat(edited_sections, ignore_index=True) if edited_sections else pd.DataFrame(columns=df.columns)
 
 # 2-1. 下載編輯後的 CSV
 csv_bytes = edited_df.to_csv(index=False).encode("utf-8-sig")
