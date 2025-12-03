@@ -26,3 +26,6 @@ Expense,個人儲蓄險(年),1880.0,USD,Yearly,0.0,0.0
 Expense,車險(年),30000.0,TWD,Yearly,0.0,0.0
 Expense,個人保險(年),30000.0,TWD,Yearly,0.0,0.0
 Asset,汽車,1500000.0,TWD,One-time,0.0,0.0
+Expense,車貸,27000.0,TWD,Monthly,2.7,5.0
+Expense,房貸,54500.0,TWD,Monthly,2.2,27.0
+Expense,信貸,47000.0,TWD,Monthly,2.5,6.0
