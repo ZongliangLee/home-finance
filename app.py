@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
-from github import Github # 引入 GitHub 套件
 import io
 
 # --- 設定頁面 ---
@@ -11,11 +10,8 @@ st.title("📊 家庭財務 AI 中控台")
 # --- 讀取 Secrets ---
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
-    github_token = st.secrets["GITHUB_TOKEN"]
-    repo_name = st.secrets["GITHUB_REPO"]
-    file_path = st.secrets["CSV_FILE_PATH"]
 except KeyError as e:
-    st.error(f"缺少 Secrets 設定: {e}。請至 Streamlit Cloud 設定 Secrets。")
+    st.error(f"缺少 GOOGLE_API_KEY 設定: {e}。請至 Streamlit Cloud 設定 Secrets。")
     st.stop()
 
 # --- 側邊欄：模型選擇 ---
@@ -39,71 +35,20 @@ with st.sidebar:
         except Exception as e:
             st.error(f"模型載入失敗: {e}")
 
-# --- 函數：從 GitHub 讀取 CSV ---
-# 使用 @st.cache_data 避免每次動作都重新抓取 GitHub，只有在存檔後清除快取
-@st.cache_data(ttl=600) 
-def load_data_from_github():
-    try:
-        g = Github(github_token)
-        repo = g.get_repo(repo_name)
-        contents = repo.get_contents(file_path)
-        # 解碼 CSV 內容
-        decoded_content = contents.decoded_content.decode("utf-8")
-        return pd.read_csv(io.StringIO(decoded_content))
-    except Exception as e:
-        st.error(f"無法從 GitHub 讀取數據: {e}")
-        return pd.DataFrame()
-
-# --- 函數：寫入數據回 GitHub ---
-def save_data_to_github(df):
-    try:
-        g = Github(github_token)
-        repo = g.get_repo(repo_name)
-        contents = repo.get_contents(file_path) # 取得目前檔案資訊(為了拿到sha)
-        
-        # 將 DataFrame 轉回 CSV 字串
-        csv_content = df.to_csv(index=False)
-        
-        # 更新 GitHub 檔案
-        repo.update_file(
-            path=contents.path,
-            message="Update via Streamlit App", # Commit message
-            content=csv_content,
-            sha=contents.sha # 必須提供原本的 sha 才能覆蓋
-        )
-        return True
-    except Exception as e:
-        st.error(f"儲存失敗: {e}")
-        return False
-
 # --- 主程式邏輯 ---
 
-# 1. 載入數據
-if 'data_loaded' not in st.session_state:
-    st.session_state.df = load_data_from_github()
-    st.session_state.data_loaded = True
-
-# 2. 顯示編輯器
+# 1. 上傳並載入 CSV 數據
 st.subheader("1. 資產與收支明細管理")
-col_edit, col_save = st.columns([4, 1])
+uploaded_file = st.file_uploader("📁 上傳財務 CSV 檔", type=["csv"])
 
-with col_edit:
-    # 這裡讓使用者編輯，並將結果存到 edited_df
-    edited_df = st.data_editor(st.session_state.df, num_rows="dynamic", use_container_width=True, key="editor")
+if uploaded_file is None:
+    st.info("請先上傳 CSV 檔以進行編輯與分析。")
+    st.stop()
 
-with col_save:
-    st.write(" ") # 排版用
-    st.write(" ") 
-    # 存檔按鈕
-    if st.button("💾 儲存至雲端 (GitHub)", type="primary"):
-        with st.spinner("正在寫入 GitHub..."):
-            if save_data_to_github(edited_df):
-                st.success("✅ 儲存成功！數據已更新。")
-                # 更新 session state 並清除快取，確保下次讀取是新的
-                st.session_state.df = edited_df
-                load_data_from_github.clear()
-            else:
-                st.error("儲存失敗，請檢查 Token 權限。")
+df = pd.read_csv(uploaded_file)
+
+# 2. 顯示編輯器（不再提供雲端儲存，編輯僅在本次瀏覽器工作階段內有效）
+edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="editor")
 
 # 匯率設定
 col1, col2 = st.columns(2)
