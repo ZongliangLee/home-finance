@@ -180,7 +180,7 @@ if st.button("Gemini 分析"):
             角色：專業財務顧問。數據：{data_context}。
             匯率：USD={USDTWD}, THB={THBTWD}。
             問題：{user_question}。
-            要求：繁體中文，Markdown，精確數據，針對未來預測給出樂觀/保守情境。
+            要求：繁體中文，Markdown，精確數據，針對未來預測給出樂觀/保守情境，呈現理專或是顧問公司專業報告的格式。
             """
             with st.spinner(f"正在分析..."):
                 response = model.generate_content(prompt)
