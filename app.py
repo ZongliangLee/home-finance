@@ -14,6 +14,10 @@ except KeyError as e:
     st.error(f"缺少 GOOGLE_API_KEY 設定: {e}。請至 Streamlit Cloud 設定 Secrets。")
     st.stop()
 
+# --- 對話狀態（在同一個瀏覽器分頁期間持續） ---
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
 # --- 側邊欄：模型選擇 ---
 with st.sidebar:
     st.header("設定")
@@ -194,18 +198,48 @@ st.subheader(f"2. Gemini 財務顧問 (模型: {selected_model_name.replace('mod
 user_question = st.text_area("您想分析什麼？", "請進行整體的財務狀況分析與建議，並預估10年後的資產變化。")
 
 if st.button("Gemini 分析"):
-    if not api_key: st.warning("請先輸入 Google API Key")
+    if not api_key:
+        st.warning("請先輸入 Google API Key")
     else:
         try:
             model = genai.GenerativeModel(selected_model_name)
             data_context = edited_df.to_csv(index=False)
+
+            # 把過往對話整理成文字加入系統脈絡，讓同一分頁中的多輪對話可以延續
+            history_text = ""
+            for turn in st.session_state.chat_history:
+                history_text += f"使用者：{turn['question']}\nAI：{turn['answer']}\n\n"
+
             prompt = f"""
-            角色：專業財務顧問。數據：{data_context}。
+            角色：專業財務顧問。
+            既有對話紀錄：
+            {history_text}
+
+            最新財務數據（CSV）：
+            {data_context}
+
             匯率：USD={USDTWD}, THB={THBTWD}。
-            問題：{user_question}。
+            本輪使用者問題：{user_question}。
             要求：繁體中文，Markdown，精確數據，針對未來預測給出樂觀/保守情境，呈現理專或是顧問公司專業報告的格式。
             """
-            with st.spinner(f"正在分析..."):
+            with st.spinner("正在分析本次問題（會一併考慮同一頁面中的歷史對話）..."):
                 response = model.generate_content(prompt)
-                st.markdown(response.text)
-        except Exception as e: st.error(f"錯誤: {e}")
+
+            # 儲存到 session_state，讓同一瀏覽器分頁中的後續提問可以延續對話
+            st.session_state.chat_history.append(
+                {"question": user_question, "answer": response.text}
+            )
+        except Exception as e:
+            st.error(f"錯誤: {e}")
+
+# 顯示目前對話紀錄（在關閉分頁或重新整理前都會保留，置於頁面底部）
+if st.session_state.chat_history:
+    st.markdown("#### 對話紀錄")
+    total_rounds = len(st.session_state.chat_history)
+    for i, turn in enumerate(st.session_state.chat_history, start=1):
+        is_latest = (i == total_rounds)
+        title = f"第 {i} 輪：{turn['question'][:30]}..." if len(turn['question']) > 30 else f"第 {i} 輪：{turn['question']}"
+        with st.expander(title, expanded=is_latest):
+            st.markdown(f"**你問：** {turn['question']}")
+            st.markdown("**AI 回答：**")
+            st.markdown(turn['answer'])
