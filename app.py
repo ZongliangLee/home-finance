@@ -68,6 +68,16 @@ df = pd.read_csv(uploaded_file)
 # 2. 顯示編輯器（不再提供雲端儲存，編輯僅在本次瀏覽器工作階段內有效）
 edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="editor")
 
+# 2-1. 下載編輯後的 CSV
+csv_bytes = edited_df.to_csv(index=False).encode("utf-8-sig")
+st.download_button(
+    label="💾 下載編輯後 CSV",
+    data=csv_bytes,
+    file_name="financial_data_edited.csv",
+    mime="text/csv",
+    help="下載目前表格中（已編輯）的內容為 CSV 檔案",
+)
+
 # 匯率設定
 col1, col2 = st.columns(2)
 with col1: USDTWD = st.number_input("USD/TWD 匯率", value=31.5)
