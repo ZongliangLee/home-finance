@@ -65,10 +65,20 @@ if uploaded_file is None:
 
 df = pd.read_csv(uploaded_file)
 
+# 將頻率欄位統一轉為中文，支援舊檔案中的英文寫法
+freq_display_map = {
+    "Monthly": "每月",
+    "Quarterly": "每季",
+    "Yearly": "每年",
+    "One-time": "單次",
+}
+if "Frequency" in df.columns:
+    df["Frequency"] = df["Frequency"].replace(freq_display_map)
+
 # 2. 以類別分頁顯示/編輯（編輯僅在本次瀏覽器工作階段內有效）
 st.markdown("#### 資料編輯區（依類別分頁）")
-primary_categories = ["Asset", "Income", "Liability", "Expense"]
-tabs = st.tabs([f"{cat} 明細" for cat in primary_categories])
+primary_categories = ["資產", "收入", "負債", "支出"]
+tabs = st.tabs([f"{cat}" for cat in primary_categories])
 edited_sections = []
 
 for tab, category in zip(tabs, primary_categories):
@@ -92,7 +102,7 @@ for tab, category in zip(tabs, primary_categories):
 # 處理不在主要四類中的資料，避免遺失
 others_df = df[~df["Category"].isin(primary_categories)]
 if not others_df.empty:
-    st.warning("偵測到非 Asset/Income/Liability/Expense 類別資料，將維持原狀。")
+    st.warning("偵測到非 資產/收入/負債/支出 類別資料，將維持原狀。")
     edited_sections.append(others_df)
 
 edited_df = pd.concat(edited_sections, ignore_index=True) if edited_sections else pd.DataFrame(columns=df.columns)
@@ -113,6 +123,15 @@ with col1: USDTWD = st.number_input("USD/TWD 匯率", value=31.5)
 with col2: THBTWD = st.number_input("THB/TWD 匯率", value=0.96)
 
 # --- 3. 計算邏輯 (使用 edited_df 進行即時計算) ---
+FREQ_TO_MONTHS = {
+    "每月": 1,
+    "Monthly": 1,
+    "每季": 3,
+    "Quarterly": 3,
+    "每年": 12,
+    "Yearly": 12,
+}
+
 def calculate_metrics(df, usdtwd, thbtwd):
     total_asset = 0; total_liability = 0; monthly_income = 0; monthly_expense = 0
     if df.empty: return 0,0,0,0
@@ -126,16 +145,18 @@ def calculate_metrics(df, usdtwd, thbtwd):
         
         cat = row['Category']; freq = row['Frequency']
         
-        if cat == 'Asset': total_asset += amount
-        elif cat == 'Liability': total_liability += amount
-        elif cat == 'Income':
-            if freq == 'Monthly': monthly_income += amount
-            elif freq == 'Quarterly': monthly_income += amount / 3
-            elif freq == 'Yearly': monthly_income += amount / 12
-        elif cat == 'Expense':
-            if freq == 'Monthly': monthly_expense += amount
-            elif freq == 'Quarterly': monthly_expense += amount / 3
-            elif freq == 'Yearly': monthly_expense += amount / 12
+        if cat == '資產': total_asset += amount
+        elif cat == '負債': total_liability += amount
+        elif cat == '收入':
+            months = FREQ_TO_MONTHS.get(freq)
+            if months == 1: monthly_income += amount
+            elif months == 3: monthly_income += amount / 3
+            elif months == 12: monthly_income += amount / 12
+        elif cat == '支出':
+            months = FREQ_TO_MONTHS.get(freq)
+            if months == 1: monthly_expense += amount
+            elif months == 3: monthly_expense += amount / 3
+            elif months == 12: monthly_expense += amount / 12
     return total_asset, total_liability, monthly_income, monthly_expense
 
 t_asset, t_liability, m_income, m_expense = calculate_metrics(edited_df, USDTWD, THBTWD)
