@@ -107,8 +107,8 @@ with col_save:
 
 # 匯率設定
 col1, col2 = st.columns(2)
-with col1: USDTWD = st.number_input("USD/TWD 匯率", value=32.5)
-with col2: THBTWD = st.number_input("THB/TWD 匯率", value=0.92)
+with col1: USDTWD = st.number_input("USD/TWD 匯率", value=31.5)
+with col2: THBTWD = st.number_input("THB/TWD 匯率", value=0.96)
 
 # --- 3. 計算邏輯 (使用 edited_df 進行即時計算) ---
 def calculate_metrics(df, usdtwd, thbtwd):
