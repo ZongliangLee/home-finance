@@ -97,7 +97,7 @@ if st.button("🚀 啟動 Gemini 分析"):
         try:
             genai.configure(api_key=api_key)
             # 使用最新的 flash 模型，速度快且便宜(免費額度內)
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-1.5-pro')
             
             # 準備資料給 AI
             data_context = edited_df.to_csv(index=False)
