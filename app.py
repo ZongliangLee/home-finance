@@ -4,8 +4,8 @@ import google.generativeai as genai
 import io
 
 # --- 設定頁面 ---
-st.set_page_config(page_title="家庭財務AI中控台", layout="wide")
-st.title("📊 家庭財務 AI 中控台")
+st.set_page_config(page_title="AI 家庭財務管理", layout="wide")
+st.title("📊 AI 家庭財務管理")
 
 # --- 讀取 Secrets ---
 try:
@@ -39,10 +39,26 @@ with st.sidebar:
 
 # 1. 上傳並載入 CSV 數據
 st.subheader("1. 資產與收支明細管理")
-uploaded_file = st.file_uploader("📁 上傳財務 CSV 檔", type=["csv"])
+
+col_upload, col_sample = st.columns([4, 1], vertical_alignment="bottom")
+with col_upload:
+    uploaded_file = st.file_uploader(
+        label="📁 上傳財務 CSV 檔",
+        type=["csv"],
+    )
+
+with col_sample:
+    with open("financial_data_sample.csv", "rb") as f:
+        sample_bytes = f.read()
+    st.download_button(
+        label="⬇️ 下載範例 CSV",
+        data=sample_bytes,
+        file_name="financial_data_sample.csv",
+        mime="text/csv",
+    )
 
 if uploaded_file is None:
-    st.info("請先上傳 CSV 檔以進行編輯與分析。")
+    st.info("請先上傳 CSV 檔以進行編輯與分析（如需範例，右側可下載範例 CSV）。")
     st.stop()
 
 df = pd.read_csv(uploaded_file)
