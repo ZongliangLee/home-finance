@@ -148,7 +148,7 @@ if 'hide_kpi' not in st.session_state:
     st.session_state.hide_kpi = False
 
 with kpi_toggle_col:
-    if st.button("👁️ 切換KPI顯示", help="點擊以隱藏或顯示 KPI 數值"):
+    if st.button("顯示金額", help="點擊以隱藏或顯示 KPI 數值"):
         st.session_state.hide_kpi = not st.session_state.hide_kpi
 
 def masked_value(value: float) -> str:
