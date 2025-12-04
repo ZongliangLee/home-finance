@@ -22,52 +22,71 @@ except KeyError as e:
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# --- 側邊欄：模型選擇 ---
+# --- 側邊欄：模型選擇邏輯 ---
 DEFAULT_MODEL_NAME = "models/gemini-2.5-flash-lite"
+
+# 初始化狀態變數
 if "show_model_list" not in st.session_state:
     st.session_state.show_model_list = False
 if "selected_model_name" not in st.session_state:
     st.session_state.selected_model_name = DEFAULT_MODEL_NAME
+if "dev_unlock_count" not in st.session_state:
+    st.session_state.dev_unlock_count = 0
 
 with st.sidebar:
     st.header("設定")
     st.subheader("🤖 模型選擇")
     
-    # 讀取目前選用的模型（預設為 DEFAULT_MODEL_NAME）
-    selected_model_name = st.session_state.selected_model_name
-    st.caption(f"目前使用模型：`{selected_model_name}`")
+    # 讀取目前選用的模型
+    current_model = st.session_state.selected_model_name
 
-    if api_key:
-        try:
-            genai.configure(api_key=api_key)
-
-            # 若開啟進階模式，才顯示模型清單
-            if st.session_state.show_model_list:
+    # --- 隱藏觸發邏輯 ---
+    # 如果還沒顯示清單，顯示一個按鈕讓使用者點擊以累積次數
+    if not st.session_state.show_model_list:
+        # 使用按鈕模擬點擊事件
+        # 移除了 help 提示，也不顯示 toast
+        if st.button(f"目前模型：\n{current_model.split('/')[-1]}"):
+            st.session_state.dev_unlock_count += 1
+            
+            # 判斷是否達到解鎖次數 (5次)
+            if st.session_state.dev_unlock_count >= 5:
+                st.session_state.show_model_list = True
+                st.session_state.dev_unlock_count = 0 # 重置計數
+                st.rerun() # 立即重新整理以顯示選單
+    
+    # --- 進階選單顯示邏輯 ---
+    else:
+        st.caption(f"目前使用模型：`{current_model}`")
+        
+        if api_key:
+            try:
+                genai.configure(api_key=api_key)
                 available_models = [
                     m.name
                     for m in genai.list_models()
                     if "generateContent" in m.supported_generation_methods
                 ]
                 if available_models:
-                    # 預設選目前已選用的模型；若不在清單中，退回第 0 筆
+                    # 預設選目前已選用的模型
                     default_index = 0
                     for i, name in enumerate(available_models):
                         if name == st.session_state.selected_model_name:
                             default_index = i
                             break
+                    
                     selected_model_name = st.selectbox(
                         "選擇 AI 模型（進階）", available_models, index=default_index
                     )
-                    # 將最新選擇寫回 session_state，之後就算關掉清單也會沿用這個模型
-                    st.session_state.selected_model_name = selected_model_name
-        except Exception as e:
-            st.error(f"模型載入失敗: {e}")
-
-    # 將「進階開關」盡量放到側邊欄底部：先加一段不可見的空白高度，再放按鈕
-    if api_key:
-        st.markdown("<div style='height: 40vh;'></div>", unsafe_allow_html=True)
-        if st.button(" ", key="dev_model_toggle"):
-            st.session_state.show_model_list = not st.session_state.show_model_list
+                    
+                    # 若模型變更，更新 session_state 並重新整理以即時更新上方的顯示
+                    if selected_model_name != st.session_state.selected_model_name:
+                        st.session_state.selected_model_name = selected_model_name
+                        st.rerun()
+                        
+            except Exception as e:
+                st.error(f"模型載入失敗: {e}")
+        
+        # 已移除「隱藏進階選項」按鈕
 
 # --- 主程式邏輯 ---
 
@@ -84,11 +103,20 @@ with col_upload:
 with col_sample:
     # 只有尚未成功上傳檔案時，才顯示「下載範例」按鈕
     if uploaded_file is None:
-        with open("financial_data_sample.csv", "rb") as f:
-            sample_bytes = f.read()
+        # 建立範例資料內容
+        sample_csv_content = """Category,Item,Amount,Currency,Frequency
+資產,銀行存款,500000,TWD,
+資產,台股投資,1200000,TWD,
+資產,美股 ETF,30000,USD,
+負債,房屋貸款,8000000,TWD,
+收入,薪資收入,70000,TWD,Monthly
+支出,伙食費,15000,TWD,Monthly
+支出,房貸月付,35000,TWD,Monthly
+支出,保險費,40000,TWD,Yearly
+"""
         st.download_button(
             label="⬇️ 下載範例 CSV",
-            data=sample_bytes,
+            data=sample_csv_content.encode("utf-8-sig"),
             file_name="financial_data_sample.csv",
             mime="text/csv",
         )
@@ -97,7 +125,11 @@ if uploaded_file is None:
     st.info("請先上傳 CSV 檔以進行編輯與分析（如需範例，右側可下載範例 CSV）。")
     st.stop()
 
-df = pd.read_csv(uploaded_file)
+try:
+    df = pd.read_csv(uploaded_file)
+except Exception as e:
+    st.error(f"讀取 CSV 失敗: {e}")
+    st.stop()
 
 # 將頻率欄位統一轉為中文，支援舊檔案中的英文寫法
 freq_display_map = {
@@ -117,12 +149,23 @@ edited_sections = []
 
 for tab, category in zip(tabs, primary_categories):
     with tab:
-        cat_df = df[df["Category"] == category].copy()
+        # 過濾該類別的資料
+        if "Category" in df.columns:
+            cat_df = df[df["Category"] == category].copy()
+        else:
+            cat_df = pd.DataFrame(columns=["Category", "Item", "Amount", "Currency", "Frequency"])
+
         if cat_df.empty:
             st.info(f"目前沒有 {category} 資料，可直接於下表新增列。")
-            cat_df = pd.DataFrame(columns=df.columns)
+            # 確保有欄位結構
+            if cat_df.empty and not df.empty:
+                 cat_df = pd.DataFrame(columns=df.columns)
+            elif cat_df.empty:
+                 cat_df = pd.DataFrame(columns=["Category", "Item", "Amount", "Currency", "Frequency"])
+
         # 確保欄位順序與原始資料一致
         cat_df = cat_df.reindex(columns=df.columns)
+        
         edited_cat = st.data_editor(
             cat_df,
             num_rows="dynamic",
@@ -130,14 +173,16 @@ for tab, category in zip(tabs, primary_categories):
             key=f"editor_{category.lower()}",
         )
         # 強制寫回類別，避免新增列失去類別資訊
-        edited_cat["Category"] = category
+        if not edited_cat.empty:
+            edited_cat["Category"] = category
         edited_sections.append(edited_cat)
 
 # 處理不在主要四類中的資料，避免遺失
-others_df = df[~df["Category"].isin(primary_categories)]
-if not others_df.empty:
-    st.warning("偵測到非 資產/收入/負債/支出 類別資料，將維持原狀。")
-    edited_sections.append(others_df)
+if "Category" in df.columns:
+    others_df = df[~df["Category"].isin(primary_categories)]
+    if not others_df.empty:
+        st.warning("偵測到非 資產/收入/負債/支出 類別資料，將維持原狀。")
+        edited_sections.append(others_df)
 
 edited_df = pd.concat(edited_sections, ignore_index=True) if edited_sections else pd.DataFrame(columns=df.columns)
 
@@ -171,13 +216,16 @@ def calculate_metrics(df, usdtwd, thbtwd):
     if df.empty: return 0,0,0,0
     
     for _, row in df.iterrows():
-        amount = pd.to_numeric(row['Amount'], errors='coerce')
+        # 簡單防呆：若 Amount 非數字則跳過
+        amount = pd.to_numeric(row.get('Amount', 0), errors='coerce')
         if pd.isna(amount): continue
         
-        if row['Currency'] == 'USD': amount *= usdtwd
-        elif row['Currency'] == 'THB': amount *= thbtwd
+        curr = row.get('Currency', 'TWD')
+        if curr == 'USD': amount *= usdtwd
+        elif curr == 'THB': amount *= thbtwd
         
-        cat = row['Category']; freq = row['Frequency']
+        cat = row.get('Category', '')
+        freq = row.get('Frequency', '')
         
         if cat == '資產': total_asset += amount
         elif cat == '負債': total_liability += amount
@@ -224,7 +272,9 @@ kpi4.metric("每月正向現金流", masked_value(monthly_net_flow))
 
 # --- 5. AI 分析 ---
 st.markdown("---")
-st.subheader(f"2. Gemini 財務顧問 (模型: {selected_model_name.replace('models/', '')})")
+current_model_short = st.session_state.selected_model_name.replace('models/', '')
+st.subheader(f"2. Gemini 財務顧問 (模型: {current_model_short})")
+
 user_question = st.text_area("您想分析什麼？", "請進行整體的財務狀況分析與建議，並預估10年後的資產變化。")
 
 if st.button("Gemini 分析"):
@@ -232,10 +282,10 @@ if st.button("Gemini 分析"):
         st.warning("請先輸入 Google API Key")
     else:
         try:
-            model = genai.GenerativeModel(selected_model_name)
+            model = genai.GenerativeModel(st.session_state.selected_model_name)
             data_context = edited_df.to_csv(index=False)
 
-            # 把過往對話整理成文字加入系統脈絡，讓同一分頁中的多輪對話可以延續
+            # 把過往對話整理成文字加入系統脈絡
             history_text = ""
             for turn in st.session_state.chat_history:
                 history_text += f"使用者：{turn['question']}\nAI：{turn['answer']}\n\n"
@@ -255,14 +305,14 @@ if st.button("Gemini 分析"):
             with st.spinner("正在分析本次問題（會一併考慮同一頁面中的歷史對話）..."):
                 response = model.generate_content(prompt)
 
-            # 儲存到 session_state，讓同一瀏覽器分頁中的後續提問可以延續對話
+            # 儲存到 session_state
             st.session_state.chat_history.append(
                 {"question": user_question, "answer": response.text}
             )
         except Exception as e:
             st.error(f"錯誤: {e}")
 
-# 顯示目前對話紀錄（在關閉分頁或重新整理前都會保留，置於頁面底部）
+# 顯示目前對話紀錄
 if st.session_state.chat_history:
     st.markdown("#### 對話紀錄")
     total_rounds = len(st.session_state.chat_history)
