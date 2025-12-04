@@ -26,14 +26,16 @@ if "chat_history" not in st.session_state:
 DEFAULT_MODEL_NAME = "models/gemini-2.5-flash-lite"
 if "show_model_list" not in st.session_state:
     st.session_state.show_model_list = False
+if "selected_model_name" not in st.session_state:
+    st.session_state.selected_model_name = DEFAULT_MODEL_NAME
 
 with st.sidebar:
     st.header("設定")
     st.subheader("🤖 模型選擇")
     
-    # 預設使用固定模型
-    selected_model_name = DEFAULT_MODEL_NAME
-    st.caption(f"目前使用預設模型：`{DEFAULT_MODEL_NAME}`")
+    # 讀取目前選用的模型（預設為 DEFAULT_MODEL_NAME）
+    selected_model_name = st.session_state.selected_model_name
+    st.caption(f"目前使用模型：`{selected_model_name}`")
 
     if api_key:
         try:
@@ -47,15 +49,17 @@ with st.sidebar:
                     if "generateContent" in m.supported_generation_methods
                 ]
                 if available_models:
-                    # 若清單中有預設模型，預設選那一個
+                    # 預設選目前已選用的模型；若不在清單中，退回第 0 筆
                     default_index = 0
                     for i, name in enumerate(available_models):
-                        if DEFAULT_MODEL_NAME in name:
+                        if name == st.session_state.selected_model_name:
                             default_index = i
                             break
                     selected_model_name = st.selectbox(
                         "選擇 AI 模型（進階）", available_models, index=default_index
                     )
+                    # 將最新選擇寫回 session_state，之後就算關掉清單也會沿用這個模型
+                    st.session_state.selected_model_name = selected_model_name
         except Exception as e:
             st.error(f"模型載入失敗: {e}")
 
