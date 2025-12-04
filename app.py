@@ -4,7 +4,11 @@ import google.generativeai as genai
 import io
 
 # --- 設定頁面 ---
-st.set_page_config(page_title="AI 家庭財務管理", layout="wide")
+st.set_page_config(
+    page_title="AI 家庭財務管理",
+    layout="wide",
+    initial_sidebar_state="collapsed",  # 預設折疊側邊欄
+)
 st.title("📊 AI 家庭財務管理")
 
 # --- 讀取 Secrets ---
@@ -19,25 +23,47 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 # --- 側邊欄：模型選擇 ---
+DEFAULT_MODEL_NAME = "models/gemini-2.5-flash-lite"
+if "show_model_list" not in st.session_state:
+    st.session_state.show_model_list = False
+
 with st.sidebar:
     st.header("設定")
     st.subheader("🤖 模型選擇")
     
-    selected_model_name = "gemini-1.5-flash"
+    # 預設使用固定模型
+    selected_model_name = DEFAULT_MODEL_NAME
+    st.caption(f"目前使用預設模型：`{DEFAULT_MODEL_NAME}`")
+
     if api_key:
         try:
             genai.configure(api_key=api_key)
-            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            if available_models:
-                # 自動找 Pro
-                default_index = 0
-                for i, name in enumerate(available_models):
-                    if "1.5-pro" in name and "latest" in name:
-                        default_index = i
-                        break
-                selected_model_name = st.selectbox("選擇 AI 模型", available_models, index=default_index)
+
+            # 若開啟進階模式，才顯示模型清單
+            if st.session_state.show_model_list:
+                available_models = [
+                    m.name
+                    for m in genai.list_models()
+                    if "generateContent" in m.supported_generation_methods
+                ]
+                if available_models:
+                    # 若清單中有預設模型，預設選那一個
+                    default_index = 0
+                    for i, name in enumerate(available_models):
+                        if DEFAULT_MODEL_NAME in name:
+                            default_index = i
+                            break
+                    selected_model_name = st.selectbox(
+                        "選擇 AI 模型（進階）", available_models, index=default_index
+                    )
         except Exception as e:
             st.error(f"模型載入失敗: {e}")
+
+    # 將「進階開關」盡量放到側邊欄底部：先加一段不可見的空白高度，再放按鈕
+    if api_key:
+        st.markdown("<div style='height: 40vh;'></div>", unsafe_allow_html=True)
+        if st.button(" ", key="dev_model_toggle"):
+            st.session_state.show_model_list = not st.session_state.show_model_list
 
 # --- 主程式邏輯 ---
 
